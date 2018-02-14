@@ -1,0 +1,226 @@
+# MFA is dedicated to datasets where variables are structured into groups.
+# Analysis 5.1 has the best result, since dimenstional 3 has highest cumulative % variance.
+#1.Data 
+   #1.1 app.h --> time used in all apps and waves.
+   #1.2 app2.h --> time used in most used apps and waves.
+   #1.3 appcat.h --> time used in all categories and waves.
+   #1.4 appcat2.h --> time used in most used categories and waves.
+
+#2.multiple factor analysis --a weighted PCA. 
+  #1.characterize the app usage. 
+  #2.data is structured. variables from different groups
+     # 2.1 one wave group (time used in different time of the day)
+     # 2.2 one app group (time used in different app)
+     # 2.3 one app category group (time used in different app category) ?
+     # 2.4 one sound group (which kind of sound typethe user mostly used)?
+  # Objective is to compare groups of variables.
+  # Study the user app usage's profile
+
+#3.Apply in different dataframe
+  #3.1 app.h 'hour + all app'
+  
+library(dplyr)  
+library(readr)  
+library(FactoMineR)
+library(Factoshiny)
+
+#############################
+#1. app.h (all apps,waves,notification)
+#############################
+app.h.m <- read_csv("E:/Data/app_wide_format.csv")
+app.h.m <- as.data.frame(app.h.m)
+
+#set d_id rownames and delete the d_id
+row.names(app.h.m) <- app.h.m$d_id
+app.h.m <- app.h.m %>% select(-c(d_id,X1))
+
+#type 's' means scaled continuous variables.
+#ncp, number of dimensions kept in the result
+
+app.h.mfa <- MFA(app.h.m, 
+                  group = c(5,105,3),
+                  type = c('s','s','s'),
+                  ncp = 5,
+                  name.group = c('wave','app','notification'))
+
+##############################
+#2. app2.h (popular app, waves,notification)
+##############################
+app2.h.m <- read_csv("E:/Data/app_popular_wide_format.csv")
+app2.h.m <- as.data.frame(app2.h.m)
+
+#set d_id rownames and delete the d_id
+row.names(app2.h.m) <- app2.h.m$d_id
+app2.h.m <- app2.h.m %>% select(-c(d_id,X1))
+
+#type 's' means scaled continuous variables.
+#ncp, number of dimensions kept in the result
+
+app2.h.mfa <- MFA(app2.h.m, 
+                  group = c(5,28,3),
+                  type = c('s','s','s'),
+                  ncp = 5,
+                  name.group = c('wave','app','notification'))
+
+#####################################
+#3. appcat.h ( app category and waves,notification)
+#####################################
+appcat.h.m <- read_csv("E:/Data/app_category_wide_format.csv")
+appcat.h.m <- as.data.frame(appcat.h.m)
+
+#set d_id rownames and delete the d_id
+row.names(appcat.h.m) <- appcat.h.m$d_id
+appcat.h.m <- appcat.h.m %>% select(-c(d_id,X1))
+
+#type 's' means scaled continuous variables.
+#ncp, number of dimensions kept in the result
+
+appcat.h.mfa <- MFA(appcat.h.m, 
+                  group = c(5,15,3),
+                  type = c('s','s','s'),
+                  ncp = 5,
+                  name.group = c('wave','appcategory','notification'))
+
+####################################
+#4. appcat2.h ( most used app category and waves,notification) 
+####################################
+appcat2.h.m <- read_csv("E:/Data/app_category_popular_wide_format.csv")
+
+appcat2.h.m <- as.data.frame(appcat2.h.m)
+
+#set d_id rownames and delete the d_id
+row.names(appcat2.h.m) <- appcat2.h.m$d_id
+appcat2.h.m <- appcat2.h.m %>% select(-c(d_id,X1))
+
+
+#type 's' means scaled continuous variables.
+#ncp, number of dimensions kept in the result
+
+appcat2.h.mfa <- MFA(appcat2.h.m, 
+                    group = c(5,12,3),
+                    type = c('s','s','s'),
+                    ncp = 5,
+                    name.group = c('wave','appcategory','notification'))
+
+#resshiny <- MFAshiny(appcat2.h.mfa)
+
+#summary
+summary(appcat2.h.mfa, nbelements = Inf)
+
+
+#graph of the groups of variables.
+plot(appcat2.h.mfa,choix = 'group', cex = 0.8)
+
+
+#graph of the patial axes
+plot(appcat2.h.mfa,choix = 'axes')
+
+
+################################
+#4.1 personality as the supplimentary group
+################################
+appcat2.h.p.m <- read_csv("E:/Data/app_category_popular_personality_wide_format.csv")
+appcat2.h.p.m <- as.data.frame(appcat2.h.p.m)
+
+#set d_id rownames and delete the d_id
+row.names(appcat2.h.p.m) <- appcat2.h.p.m$d_id
+appcat2.h.p.m <- appcat2.h.p.m %>% select(-c(d_id,X1))
+colnames(appcat2.h.p.m) <- c('aft','eve','lun','mor','nig','entertainment','lifestyle','music','navigation','photovideo','productivity','shopping','socialnetwork','utility','weather','education','fooddrink','silence','sound','vibrate','ext','agr','con','neu','ope')
+
+#type 's' means scaled continuous variables.
+#ncp, number of dimensions kept in the result
+
+appcat2.h.p.mfa <- MFA(appcat2.h.p.m, 
+                     group = c(5,12,3,5),
+                     type = c('s','s','s','s'),
+                     num.group.sup = c(4),
+                     ncp = 5,
+                     name.group = c('wave','appcategory','notification','personality'))
+
+resshiny.p <- MFAshiny(appcat2.h.p.mfa)
+
+#summary
+summary(appcat2.h.p.mfa, nbelements = Inf)
+
+#####################################
+#4.2 only take personality binary value as supplimentatry group
+#####################################
+appcat2.h.pbi.m <- appcat2.h.p.m
+appcat2.h.pbi.m$ext <- ifelse(appcat2.h.pbi.m$ext > mean(appcat2.h.pbi.m$ext), 1,0)
+appcat2.h.pbi.m$agr <- ifelse(appcat2.h.pbi.m$agr > mean(appcat2.h.pbi.m$agr), 1,0)
+appcat2.h.pbi.m$con <- ifelse(appcat2.h.pbi.m$con > mean(appcat2.h.pbi.m$con), 1,0)
+appcat2.h.pbi.m$neu <- ifelse(appcat2.h.pbi.m$neu > mean(appcat2.h.pbi.m$neu), 1,0)
+appcat2.h.pbi.m$ope <- ifelse(appcat2.h.pbi.m$ope > mean(appcat2.h.pbi.m$ope), 1,0)
+
+#type 's' means scaled continuous variables.
+#ncp, number of dimensions kept in the result
+
+appcat2.h.pbi.mfa <- MFA(appcat2.h.pbi.m, 
+                       group = c(5,12,3,5),
+                       type = c('s','s','s','n'),
+                       num.group.sup = c(4),
+                       ncp = 5,
+                       name.group = c('wave','appcategory','notification','personality_bi'))
+
+resshiny.p <- MFAshiny(appcat2.h.pbi.mfa)
+
+#summary
+summary(appcat2.h.pbi.mfa, nbelements = Inf)
+
+################################
+#5 regroup the data, since the wave, noti, and appcat2 group does not have good result, espeically in the cumulative %of variance.
+################################
+appcat2.h.p.m <- read_csv("E:/Data/app_category_popular_personality_wide_format.csv")
+appcat2.h.p.m <- as.data.frame(appcat2.h.p.m)
+
+#set d_id rownames and delete the d_id
+row.names(appcat2.h.p.m) <- appcat2.h.p.m$d_id
+appcat2.h.p.m <- appcat2.h.p.m %>% select(-c(d_id,X1))
+colnames(appcat2.h.p.m) <- c('aft','eve','lun','mor','nig','entertainment','lifestyle','music','navigation','photovideo','productivity','shopping','socialnetwork','utility','weather','education','fooddrink','silence','sound','vibrate','ext','agr','con','neu','ope')
+appcat2.act.inact <- appcat2.h.p.m
+appcat2.act.inact <- appcat2.act.inact %>% select(entertainment, photovideo,silence,sound,vibrate, socialnetwork,ext,agr,con,neu,ope)
+
+
+#type 's' means scaled continuous variables.
+#ncp, number of dimensions kept in the result
+
+appcat2.act.inact.mfa <- MFA(appcat2.act.inact, 
+                       group = c(3,3,5),
+                       type = c('s','s','s'),
+                       num.group.sup = c(3),
+                       ncp = 5,
+                       name.group = c('notsocial','social','personality'))
+
+resshiny.p <- MFAshiny(appcat2.act.inact.mfa)
+
+#summary
+summary(appcat2.act.inact.mfa, nbelements = Inf)
+
+#################################
+#5.1 regroup the data, since the wave, noti, and appcat2 group does not have good result, espeically in the cumulative %of variance.
+################################
+appcat2.h.p.m <- read_csv("E:/Data/app_category_popular_personality_wide_format.csv")
+appcat2.h.p.m <- as.data.frame(appcat2.h.p.m)
+
+#set d_id rownames and delete the d_id
+row.names(appcat2.h.p.m) <- appcat2.h.p.m$d_id
+appcat2.h.p.m <- appcat2.h.p.m %>% select(-c(d_id,X1))
+colnames(appcat2.h.p.m) <- c('aft','eve','lun','mor','nig','entertainment','lifestyle','music','navigation','photovideo','productivity','shopping','socialnetwork','utility','weather','education','fooddrink','silence','sound','vibrate','ext','agr','con','neu','ope')
+appcat2.act.inact.sou <- appcat2.h.p.m
+appcat2.act.inact.sou <- appcat2.act.inact.sou %>% select(entertainment,photovideo,silence,sound,vibrate, socialnetwork,ext,agr,con,neu,ope)
+
+
+#type 's' means scaled continuous variables.
+#ncp, number of dimensions kept in the result
+
+appcat2.act.inact.sou.mfa <- MFA(appcat2.act.inact.sou, 
+                             group = c(3,2,1,5),
+                             type = c('s','s','s','s'),
+                             num.group.sup = c(4),
+                             ncp = 5,
+                             name.group = c('notsocial','sound','social','personality'))
+
+resshiny.p <- MFAshiny(appcat2.act.inact.sou.mfa)
+
+#summary
+summary(appcat2.act.inact.sou.mfa, nbelements = Inf)
