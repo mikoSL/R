@@ -1,0 +1,41 @@
+#data cleaning and filtering
+#1.original_data: valid users and valid data (set: process importance = 100)
+#2.cleaned data from origninal data
+#2.1.subset the useful conlumns. 
+#2.2.delete invalid data (duration> 10h or duration >0)
+#2.3.delete when the date is 1970-x-x and 2012-1-1
+#2.4.change d_31 from 2010-1 to 2016-10, since d31 only has 500 records from wrong time. To keep the record of d31, replace the wrong time with random guess date.
+
+library(readxl)
+library(dplyr)
+library(lubridate)
+
+#load date
+original_data <- read_excel("E:/Data/history_valid_user_data.xlsx")
+
+
+#add new column
+original_data["stime"] <- format(as.POSIXct(original_data$readabaletime,format("%H:HM:%S")),"%H:%M")
+
+#change sdate and shour to right format 
+original_data$sdate <- format(as.Date(original_data$readabaletime,format = "%Y-%M-%d"))
+original_data$shour <- format(as.POSIXct(original_data$readabaletime,format("%H:HM:%S")),"%H")
+original_data$tduration <- round((original_data$double_end_timestampx - original_data$timestampx)/1000,digits = 0)
+
+#subset original data
+apph <- subset(original_data, select = c('T_id','d_id','sdate','sweekday','stime','shour','tduration','app_name_en','app_category','is_system_app'))
+
+# select the tduration bigger than 0 but smaller than 10h (60*60*10)
+apph <- apph[apph$tduration > 0,]
+apph <- apph[apph$tduration < 36000,]
+
+# filter out the date 1970-01-02 and 2012-01-01
+apph <- apph %>% filter(sdate > '1970-01-02')
+apph <- apph[!(apph$sdate == '2012-01-01'),]
+
+# replace all data of d31 with new date.e.g 2010-01-01 --> 2016-09-30
+apph$sdate[apph$sdate == '2010-01-01'] <- '2016-09-30'
+apph$sdate[apph$sdate == '2010-01-02'] <- '2016-10-01'
+
+#save cleaned file
+write.csv(apph, file = "E:\\Data\\validUserDataforAnalysis\\cleaned_history.csv")
