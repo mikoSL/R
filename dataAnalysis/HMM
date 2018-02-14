@@ -1,0 +1,139 @@
+#singleHMMPrediction
+
+library(depmixS4)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(readxl)
+library(ggplot2)
+
+
+#load data
+
+#load app data (which is proved to have strong coefficents from PLS PM model)
+apphmm2 <- read_csv("E:/Data/app_data_for_singleHMM.csv")
+
+#seperate 6 users as test id
+testid <- c('d4','d6','d20','d22','d25','d32')
+test.org <- apphmm2 %>% filter(d_id %in% testid)
+train.org <- apphmm2 %>% filter(!d_id %in% testid)
+
+####################################
+#HMM for extraversion(according to the result from 'singleHMM.r', 3 states has lowest BIC)
+####################################
+
+set.seed(1)
+mod.ext <-  depmix(list(timeapp.Email ~ 1, timeapp.QQ ~ 1),
+                  data = train.org,
+                  nstates = 3,
+                  family = list(gaussian(),gaussian()),
+                  trstart = runif(9))
+                  
+#Note the use of verbose = FALSE to suppress printing of information on the iterations of the fitting process
+fm.ext <- fit(mod.ext)
+
+## EM converges to a local maximum, so it is advisable to fit a model
+## repeatedly with different random starting values
+for (i in 1:100) {
+  try(tfm.ext <- fit(mod.ext, verbose = FALSE))
+  if (logLik(tfm.ext) > logLik(fm.ext))
+    fm.ext <- tfm.ext
+}
+
+
+##############################
+#fit the test data in  ext model and extract model loglikelihood for each device.
+##############################
+
+set.seed(1)
+result.ext <- data.frame(c('1','2','3','4','5','6'))
+colnames(result.ext) <- 'logLik.ext'
+result.ext$logLik.ext <- as.numeric(result.ext$logLik.ext)
+
+for (i in 1:nrow(test.org)) {
+  modNew.exti <- depmix(list(timeapp.Email ~ 1, timeapp.QQ ~ 1),
+                          data = test.org[i,],
+                          nstates = 3,
+                          family = list(gaussian(),gaussian()),
+                          trstart = runif(9))
+  #get parameter from estimated model
+  modNew.exti <- setpars(modNew.exti, getpars(fm.ext))
+  #get the value of P(y/lambda)
+  fb.exti <- forwardbackward(modNew.exti)
+  
+  result.ext[i,1] <- fb.exti$logLike
+}
+
+
+###################################
+##HMM for not extraversion (according to 'singleHMM.r', 1 state has lowest BIC.)
+###################################
+
+set.seed(1)
+mod.noext <- depmix(list(ent ~ 1, pho ~ 1, sil ~ 1),
+                 data = train.org,
+                 nstates = 1,
+                 family = list(gaussian(),gaussian(),gaussian()),
+                 trstart = runif(1))
+
+#Note the use of verbose = FALSE to suppress printing of information on the iterations of the fitting process
+fm.noext <- fit(mod.noext,verbose = FALSE)
+
+## EM converges to a local maximum, so it is advisable to fit a model
+## repeatedly with different random starting values
+for (i in 1:100) {
+  try(tfm.noext <- fit(mod.noext, verbose = FALSE))
+  if (logLik(tfm.noext) > logLik(fm.noext))
+    fm.noext <- tfm.noext
+}
+
+
+##############################
+#fit the test data in non ext model and extract model loglikelihood for each device.
+##############################
+set.seed(1)
+result.noext <- data.frame(c('1','2','3','4','5','6'))
+colnames(result.noext) <- 'logLik.noext'
+result.noext$logLik.noext <- as.numeric(result.noext$logLik.noext)
+
+for (i in 1:nrow(test.org)) {
+modNew.noexti <- depmix(list(ent ~ 1, pho ~ 1, sil ~ 1),
+                  data = test.org[i,],
+                  nstates = 1,
+                  family = list(gaussian(),gaussian(),gaussian()),
+                  trstart = runif(1))
+#get parameter from estimated model
+modNew.noexti <- setpars(modNew.noexti, getpars(fm.noext))
+#get the value of P(y/lambda)
+fb.noexti <- forwardbackward(modNew.noexti)
+
+result.noext[i,1] <- fb.noexti$logLike
+}
+
+###############################
+#compare 
+#test is passed into each HMM and a log likelihood score produced. 
+#The higher the log likelihood the more likely it is that the model generated the observed data.
+###############################
+result <- cbind(result.ext,result.noext)
+result$predictedmodel <- ifelse(result$logLik.noext > result$logLik.ext, 'noext', 'ext')
+result$d_id <- test.org$d_id
+
+#compare with original data
+ext <- read_csv("E:/2017MasterThesisData/2017MasterThesisDB/validUserDataforAnalysis/personality_binary_extraversion.csv")
+ext <- ext %>% select(-X1)
+ext$extbi <- ifelse(ext$extbi == '1','ext','no_ext')
+exttest <- ext %>% filter(d_id %in% testid)
+
+finalresult <- merge(exttest,result, by = 'd_id')
+
+
+#plot the estimation and predictionpercentage the model for train and test set
+finalresult['correct'] <- ifelse(finalresult$predictedmodel == finalresult$extbi, 1, 0)
+right_final <- finalresult %>% group_by(correct) %>% summarize(no_right = n())
+
+ggplot(finalresult, 
+       aes(x = '',
+           fill = factor(correct))) +
+  geom_bar(width = 1) +
+  coord_polar(theta = "y", start = 0)
